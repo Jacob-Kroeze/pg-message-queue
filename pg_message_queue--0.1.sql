@@ -1,8 +1,5 @@
---README:  This does not include nicities of extension packing or JSON support
--- yet.  Right now it runs on Pg 9.1 comfortably, and a 9.2 version with JSON
--- support is in the works.  This is essentially a discussion draft.
+\echo Use "CREATE EXTENSION pair" to load this file. \quit
 
-BEGIN;
 CREATE TABLE pg_mq_queue_catalog (
     table_name name not null unique,
     channel name primary key,
@@ -30,9 +27,6 @@ CREATE TABLE pg_mq_bytea (
     payload bytea not null,
     primary key (msg_id)
 ) inherits (pg_mq_base);
-
-COMMIT;
-BEGIN;
 
 -- for 9.2 add JSON type as well.
 
@@ -190,4 +184,3 @@ LANGUAGE PLPGSQL AS $$
 END;
 $$;
 
-commit;
