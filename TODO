@@ -1,12 +1,7 @@
 TODO items
 
-* Documentation
-   * Installation
-   * Features
-   * Architecture
-   * API
+* Improve Documentation
 * Code
-   * Simplify interface.  Reduce to _bin and _text interfaces
    * Add JSON queues for 9.2
 * Test Suite
    * Intra-db tests
