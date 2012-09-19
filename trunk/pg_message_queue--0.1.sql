@@ -15,8 +15,9 @@ $$ The base message queue catalog.  $$;
 
 CREATE TABLE pg_mq_base (
     msg_id bigserial not null,
+    sent_at timestamp not null default now(),
     sent_by name not null default session_user,
-    was_delivered bool not null default false
+    delivered_at timestamp
 );
 
 CREATE TABLE pg_mq_xml (
@@ -49,7 +50,13 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_create_queue(in_channel text, in_type text)
+COMMENT ON FUNCTION pg_mq_trigger_notify() IS
+$$ This function raises a notification on the channel specified in the 
+pg_mq_config_catalog for this table.  It is looked up every time currently so
+if the value is changed in that table it takes effect on db commit. $$;
+
+CREATE OR REPLACE FUNCTION pg_mq_create_queue
+(in_channel text, in_payload_type text)
 RETURNS pg_mq_config_catalog 
 LANGUAGE PLPGSQL VOLATILE SECURITY DEFINER AS $$
 
@@ -136,13 +143,13 @@ LANGUAGE PLPGSQL VOLATILE AS $$
       END IF;
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
-                SET was_delivered = true 
+                SET delivered_at = now()
               WHERE msg_id IN (SELECT msg_id 
                                  FROM $e$ || quote_ident(cat_entry.table_name) || 
-                         $e$    WHERE was_delivered is not true
+                         $e$    WHERE delivered_at IS NULL
                              ORDER BY msg_id LIMIT $e$ || in_num_msgs || $e$
                              )
-          RETURNING msg_id, sent_by, was_delivered, payload::text $e$;
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$;
 END;
 $$;
 
@@ -156,17 +163,17 @@ LANGUAGE PLPGSQL AS $$
         WHERE channel = in_channel;
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
-                SET was_delivered = true 
+                SET delivered_at = now()
               WHERE msg_id IN (SELECT msg_id 
                                  FROM $e$ || quote_ident(cat_entry.table_name) || 
-                         $e$    WHERE was_delivered is not true
+                         $e$    WHERE delivered_at IS NULL
                              ORDER BY msg_id LIMIT $e$ || in_num_msgs || $e$
                              ) 
-          RETURNING msg_id, sent_by, was_delivered, payload::bytea $e$;
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text(in_channel name, in_id int)
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text(in_channel name, in_msg_id int)
 RETURNS pg_mq_text 
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
@@ -176,15 +183,15 @@ LANGUAGE PLPGSQL AS $$
         WHERE channel = in_channel;
       EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
-                SET was_delivered = true 
+                SET delivered_at = now() 
               WHERE msg_id = $e$ || quote_literal(in_id) $e$
-          RETURNING msg_id, sent_by, was_delivered, payload::text $e$
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$
       INTO out_val;
       RETURN out_val;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_id int)
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_msg_id int)
 RETURNS pg_mq_bytea 
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
@@ -194,10 +201,28 @@ LANGUAGE PLPGSQL AS $$
         WHERE channel = in_channel;
       EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
-                SET was_delivered = true 
+                SET delivered_at = now() 
               WHERE msg_id = $e$ || quote_literal(in_id) $e$
-          RETURNING msg_id, sent_by, was_delivered, payload::bytea $e$
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$
       INTO out_val;
       RETURN out_val;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_mq_rebuild_triggers() returns int
+LANGUAGE plpgsql AS $$
+DECLARE 
+    cat_val pg_mq_config_catalog%ROWTYPE;
+    retval int;
+BEGIN
+    retval := 0;
+    FOR cat_val IN  SELECT * FROM pg_mq_config_catalog 
+    LOOP
+       EXECUTE 'CREATE TRIGGER pg_mq_notify
+         AFTER INSERT ON ' || quote_ident(t_table_name) || '
+         FOR EACH ROW EXECUTE PROCEDURE pg_mq_trigger_notify()';
+       retval := retval + 1;
+    END LOOP;
+    RETURN retval;
 END;
 $$;
