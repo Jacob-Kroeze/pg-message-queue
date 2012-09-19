@@ -2,6 +2,8 @@ TODO items
 
 * Improve Documentation
 * Code
+   * Add rebuild triggers procedure
+   * Add get_by_id_test and get_by_id_bin api's
    * Add JSON queues for 9.2
 * Test Suite
    * Intra-db tests

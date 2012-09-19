@@ -44,7 +44,7 @@ BEGIN
    SELECT channel INTO t_channel FROM pg_mq_config_catalog 
     WHERE table_name = TG_RELNAME;
 
-   EXECUTE 'NOTIFY ' || quote_ident(t_channel);
+   EXECUTE 'NOTIFY ' || quote_ident(t_channel) || ', ' || NEW.msg_id;
    RETURN NEW;
 END;
 $$;
@@ -150,6 +150,7 @@ CREATE OR REPLACE FUNCTION pg_mq_get_msg_bin(in_channel name, in_num_msgs int)
 RETURNS SETOF pg_mq_bytea 
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
+           out_val pg_mq_text%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
@@ -165,3 +166,38 @@ LANGUAGE PLPGSQL AS $$
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text(in_channel name, in_id int)
+RETURNS pg_mq_text 
+LANGUAGE PLPGSQL AS $$
+   DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
+           out_val pg_mq_text%ROWTYPE;
+   BEGIN
+      SELECT * INTO cat_entry FROM pg_mq_config_catalog
+        WHERE channel = in_channel;
+      EXECUTE
+         $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
+                SET was_delivered = true 
+              WHERE msg_id = $e$ || quote_literal(in_id) $e$
+          RETURNING msg_id, sent_by, was_delivered, payload::text $e$
+      INTO out_val;
+      RETURN out_val;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_id int)
+RETURNS pg_mq_bytea 
+LANGUAGE PLPGSQL AS $$
+   DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
+           out_val pg_mq_text%ROWTYPE;
+   BEGIN
+      SELECT * INTO cat_entry FROM pg_mq_config_catalog
+        WHERE channel = in_channel;
+      EXECUTE
+         $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
+                SET was_delivered = true 
+              WHERE msg_id = $e$ || quote_literal(in_id) $e$
+          RETURNING msg_id, sent_by, was_delivered, payload::bytea $e$
+      INTO out_val;
+      RETURN out_val;
+END;
+$$;
