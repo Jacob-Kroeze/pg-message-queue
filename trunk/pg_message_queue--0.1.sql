@@ -45,7 +45,8 @@ BEGIN
    SELECT channel INTO t_channel FROM pg_mq_config_catalog 
     WHERE table_name = TG_RELNAME;
 
-   EXECUTE 'NOTIFY ' || quote_ident(t_channel) || ', ' || NEW.msg_id;
+   EXECUTE 'NOTIFY ' || quote_ident(t_channel) || ', ' 
+            || quote_literal(NEW.msg_id);
    RETURN NEW;
 END;
 $$;
@@ -68,13 +69,13 @@ BEGIN
 t_table_name := 'pg_mq_queue_' || in_channel;
 
 INSERT INTO pg_mq_config_catalog (table_name, channel, payload_type)
-VALUES (t_table_name, in_channel, in_type);
+VALUES (t_table_name, in_channel, in_payload_type);
 
 SELECT * INTO out_val FROM pg_mq_config_catalog 
  WHERE channel = in_channel;
 
 EXECUTE 'CREATE TABLE ' || quote_ident(t_table_name) || '(
-    like ' ||  quote_ident('pg_mq_' || in_type ) || ' INCLUDING ALL
+    like ' ||  quote_ident('pg_mq_' || in_payload_type ) || ' INCLUDING ALL
   )';
 
 EXECUTE 'CREATE TRIGGER pg_mq_notify
@@ -118,14 +119,15 @@ LANGUAGE PLPGSQL VOLATILE AS $$
     BEGIN
        SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
+      IF NOT FOUND THEN
+         RAISE EXCEPTION 'Channel Not Found';
+      END IF;
 
        EXECUTE 'INSERT INTO ' || quote_ident(cat_entry.table_name)
-               || ' (payload) VALUES (' || quote_literal(in_payload) || ')';
-
-       EXECUTE 
-               'SELECT (msg::pg_mq_base).* FROM ' || 
-                       quote_ident(cat_entry.table_name) || ' msg 
-                 WHERE msg_id = currval(''pg_mq_base_msg_id_seq'')' 
+               || ' (payload) VALUES ( 
+                     cast (' || quote_literal(in_payload) || ' AS ' || 
+                                quote_ident(cat_entry.payload_type) || '))
+                RETURNING msg_id, sent_at, sent_by, delivered_at'
        INTO out_val ;
        RETURN out_val;
     END;
