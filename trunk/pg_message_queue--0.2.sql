@@ -19,6 +19,12 @@ CREATE TABLE pg_mq_base (
     delivered_at timestamp
 );
 
+-- these are types for return values only.  they are not for storage. 
+-- using tables because types don't inherit
+
+CREATE TABLE pg_mq_text (payload text) inherits (pg_mq_base);
+CREATE TABLE pg_mq_bin (payload bytea) inherits (pg_mq_base);
+
 CREATE OR REPLACE FUNCTION pg_mq_trigger_notify() RETURNS TRIGGER
 LANGUAGE PLPGSQL AS
 $$
@@ -157,10 +163,8 @@ LANGUAGE PLPGSQL VOLATILE AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_text
-(IN in_channel name, IN in_num_msgs int,
- OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
- OUT delivered_at timestamp, OUT payload text)
-RETURNS SETOF RECORD
+(in_channel name, in_num_messages int)
+REUTNRS SETOF pg_mq_text
 LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
@@ -175,17 +179,13 @@ LANGUAGE PLPGSQL VOLATILE AS $$
                              ORDER BY msg_id LIMIT $e$ || in_num_msgs || $e$
                              )
           RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$;
-END;
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_bin
-(IN in_channel name, IN in_num_msgs int,
- OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
- OUT delivered_at timestamp, OUT payload bytea)
-RETURNS SETOF record
-LANGUAGE PLPGSQL AS $$
+(in_channel name in_num_msgs int)
+RETURNS SETOF pg_mq_bin LANGUAGE PLPGSQL VOLATILE AS
+$$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
-           out_val pg_mq_text%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
@@ -202,44 +202,34 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text
-(IN in_channel name, IN in_msg_id int
- OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
- OUT delivered_at timestamp, OUT payload text)
-RETURNS RECORD
-LANGUAGE PLPGSQL AS $$
+(in_channel name, in_msg_id int)
+RETURNS SETOF pg_mq_text
+LANGUAGE PLPGSQL STABLE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
-           out_val pg_mq_text%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
-      EXECUTE
+      RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now() 
               WHERE msg_id = $e$ || quote_literal(in_id) $e$
-          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$
-      INTO out_val;
-      RETURN out_val;
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin
-(IN in_channel name, IN in_msg_id int
- OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
- OUT delivered_at timestamp, OUT payload bytea)
-RETURNS RECORD
-LANGUAGE PLPGSQL AS $$
+CREATE OR REPLACE FUNTION pg_mq_get_msg_id_bin
+(in_channel name, in_msg_id int)
+RETURNS SETOF RECORD LANGUAGE PLPGSQL STABLE AS
+$$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
-           out_val pg_mq_text%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
-      EXECUTE
+      RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now() 
               WHERE msg_id = $e$ || quote_literal(in_id) $e$
-          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$
-      INTO out_val;
-      RETURN out_val;
+          RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$;
 END;
 $$;
 
