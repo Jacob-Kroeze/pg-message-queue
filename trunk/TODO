@@ -1,11 +1,11 @@
 TODO items
 
 * Improve Documentation
-   * API documentation
-   * Security documentation
    * Installation Documentation
 * Code
-   * Add JSON queues for 9.2
+   * Add delivery logs
+   * Allow configuration for raising NOTICEs on delivery, for other logging
+   * 
 * Test Suite
    * Intra-db tests
    * External tests
