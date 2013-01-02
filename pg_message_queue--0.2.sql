@@ -117,9 +117,10 @@ LANGUAGE PLPGSQL VOLATILE AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_raw
-(IN in_channel name, IN in_num_msgs int, IN in_raw_cast anyelement,
-OUT msg_id int, OUT sent_at timestamp, OUT sent_by name,
-OUT delivered_at timestamp, OUT payload anyelement)
+(IN in_channel name, IN in_num_msgs int, IN in_raw_data anyelement,
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload anyelement)
+RETURNS SETOF record
 LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
@@ -137,10 +138,11 @@ LANGUAGE PLPGSQL VOLATILE AS $$
    END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_by_idraw
-(IN in_channel name, IN in_msg_id int, IN in_raw_cast anyelement,
-OUT msg_id int, OUT sent_at timestamp, OUT sent_by name,
-OUT delivered_at timestamp, OUT payload anyelement)
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_by_id_raw
+(IN in_channel name, IN in_msg_id int, IN in_raw_data anyelement,
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload anyelement)
+RETURNS SETOF record
 LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
@@ -154,8 +156,11 @@ LANGUAGE PLPGSQL VOLATILE AS $$
    END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_text(in_channel name, in_num_msgs int)
-RETURNS SETOF pg_mq_text
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_text
+(IN in_channel name, IN in_num_msgs int,
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload text)
+RETURNS SETOF RECORD
 LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
@@ -173,8 +178,11 @@ LANGUAGE PLPGSQL VOLATILE AS $$
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_bin(in_channel name, in_num_msgs int)
-RETURNS SETOF pg_mq_bytea 
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_bin
+(IN in_channel name, IN in_num_msgs int,
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload bytea)
+RETURNS SETOF record
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
            out_val pg_mq_text%ROWTYPE;
@@ -193,8 +201,11 @@ LANGUAGE PLPGSQL AS $$
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text(in_channel name, in_msg_id int)
-RETURNS pg_mq_text 
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text
+(IN in_channel name, IN in_msg_id int
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload text)
+RETURNS RECORD
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
            out_val pg_mq_text%ROWTYPE;
@@ -211,8 +222,11 @@ LANGUAGE PLPGSQL AS $$
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_msg_id int)
-RETURNS pg_mq_bytea 
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin
+(IN in_channel name, IN in_msg_id int
+ OUT msg_id int, OUT sent_at timestamp, OUT sent_by name, 
+ OUT delivered_at timestamp, OUT payload bytea)
+RETURNS RECORD
 LANGUAGE PLPGSQL AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
            out_val pg_mq_text%ROWTYPE;

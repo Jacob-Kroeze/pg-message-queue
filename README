@@ -13,6 +13,20 @@ Applications include:
  * Sending messages to other systems (perhaps a gateway to RabbitMQ or the
    like?)
 
+INSTALLATION
+------------
+
+To install the extension so that PostgreSQL can find it:
+
+make install
+
+If you are using Linux with distro-supplied packages you may need to install 
+the development packages.
+
+Then in psql, pgAdmin, or the like, run the following SQL query:
+
+CREATE EXTENSION pg_message_queue;
+
 USAGE
 -----
 
@@ -61,7 +75,7 @@ pg_mq_send_message(in_channel text, in_payload anyelement)
 
 Example:
 
-SELECT * FROM pg_mq_send_message('test_queue', 'Read This');
+SELECT * FROM pg_mq_send_message('test_queue', 'Read This'::text);
 
 Retrieving Message:
 -------------------
