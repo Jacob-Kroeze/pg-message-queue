@@ -45,7 +45,7 @@ pg_mq_config_catalog for this table.  It is looked up every time currently so
 if the value is changed in that table it takes effect on db commit. $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_create_queue
-(in_channel text, in_payload_type text)
+(in_channel text, in_payload_type REGTYPE)
 RETURNS pg_mq_config_catalog 
 LANGUAGE PLPGSQL VOLATILE SECURITY DEFINER AS $$
 
@@ -62,9 +62,11 @@ VALUES (t_table_name, in_channel, in_payload_type);
 SELECT * INTO out_val FROM pg_mq_config_catalog 
  WHERE channel = in_channel;
 
+-- in_payload_type can't be quoted since it is a regtype, but that also makes
+-- it safe.  --CT
 EXECUTE 'CREATE TABLE ' || quote_ident(t_table_name) || '(
     like pg_mq_base INCLUDING ALL,
-    payload ' || quote_ident(payload_type) || ' NOT NULL
+    payload ' || in_payload_type || ' NOT NULL
   )';
 
 EXECUTE 'CREATE TRIGGER pg_mq_notify
@@ -76,7 +78,7 @@ RETURN out_val;
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION pg_mq_create_queue(text, text) FROM public;
+REVOKE EXECUTE ON FUNCTION pg_mq_create_queue(text, REGTYPE) FROM public;
 
 CREATE OR REPLACE FUNCTION pg_mq_drop_queue(in_channel name) RETURNS bool
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER  AS $$
@@ -115,7 +117,7 @@ LANGUAGE PLPGSQL VOLATILE AS $$
        EXECUTE 'INSERT INTO ' || quote_ident(cat_entry.table_name)
                || ' (payload) VALUES ( 
                      cast (' || quote_literal(in_payload) || ' AS ' || 
-                                quote_ident(cat_entry.payload_type) || '))
+                                cat_entry.payload_type || '))
                 RETURNING msg_id, sent_at, sent_by, delivered_at'
        INTO out_val ;
        RETURN out_val;
@@ -163,13 +165,15 @@ LANGUAGE PLPGSQL VOLATILE AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_text
-(in_channel name, in_num_messages int)
-REUTNRS SETOF pg_mq_text
+(in_channel name, in_num_msgs bigint)
+RETURNS SETOF pg_mq_text
 LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
+
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
+
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now()
@@ -179,16 +183,18 @@ LANGUAGE PLPGSQL VOLATILE AS $$
                              ORDER BY msg_id LIMIT $e$ || in_num_msgs || $e$
                              )
           RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$;
+   END;
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_bin
-(in_channel name in_num_msgs int)
+(in_channel name, in_num_msgs int)
 RETURNS SETOF pg_mq_bin LANGUAGE PLPGSQL VOLATILE AS
 $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
         WHERE channel = in_channel;
+
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now()
@@ -198,13 +204,13 @@ $$
                              ORDER BY msg_id LIMIT $e$ || in_num_msgs || $e$
                              ) 
           RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$;
-END;
+    END;
 $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_text
-(in_channel name, in_msg_id int)
+(in_channel name, in_msg_id bigint)
 RETURNS SETOF pg_mq_text
-LANGUAGE PLPGSQL STABLE AS $$
+LANGUAGE PLPGSQL VOLATILE AS $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
       SELECT * INTO cat_entry FROM pg_mq_config_catalog
@@ -212,14 +218,14 @@ LANGUAGE PLPGSQL STABLE AS $$
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now() 
-              WHERE msg_id = $e$ || quote_literal(in_id) $e$
+              WHERE msg_id = $e$ || quote_literal(in_msg_id) || $e$
           RETURNING msg_id, sent_at, sent_by, delivered_at, payload::text $e$;
-END;
+    END;
 $$;
 
-CREATE OR REPLACE FUNTION pg_mq_get_msg_id_bin
-(in_channel name, in_msg_id int)
-RETURNS SETOF RECORD LANGUAGE PLPGSQL STABLE AS
+CREATE OR REPLACE FUNCTION pg_mq_get_msg_id_bin
+(in_channel name, in_msg_id bigint)
+RETURNS SETOF pg_mq_bin LANGUAGE PLPGSQL VOLATILE AS
 $$
    DECLARE cat_entry pg_mq_config_catalog%ROWTYPE;
    BEGIN
@@ -228,7 +234,7 @@ $$
       RETURN QUERY EXECUTE
          $e$ UPDATE $e$ || quote_ident(cat_entry.table_name) || $e$
                 SET delivered_at = now() 
-              WHERE msg_id = $e$ || quote_literal(in_id) $e$
+              WHERE msg_id = $e$ || quote_literal(in_msg_id) || $e$
           RETURNING msg_id, sent_at, sent_by, delivered_at, payload::bytea $e$;
 END;
 $$;
