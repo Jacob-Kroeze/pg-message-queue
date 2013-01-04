@@ -1,11 +1,6 @@
 TODO items
 
-* Improve Documentation
-   * Installation Documentation
 * Code
    * Add delivery logs
    * Allow configuration for raising NOTICEs on delivery, for other logging
-* Test Suite
-   * Intra-db tests
-   * External tests
-* Upgrade script for 0.1 to 0.2
+   * Add role management
