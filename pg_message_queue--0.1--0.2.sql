@@ -1,13 +1,39 @@
 \echo Use "CREATE EXTENSION pg_message_queue" to load this file. \quit
 
+DROP TABLE pg_mq_xml;
+ALTER TABLE pg_mq_bytea RENAME TO pg_mq_bin;
+
+ALTER TABLE pg_mq_config_catalog
+ DROP CONSTRAINT "pg_mq_config_catalog_payload_type_check" ;
+
+DROP FUNCTION pg_mq_trigger_notify();
 DROP FUNCTION pg_mq_create_queue (in_channel text, in_payload_type text);
 DROP FUNCTION pg_mq_drop_queue(in_channel name);
 DROP FUNCTION pg_mq_send_message(in_channel text, in_payload anyelement);
 DROP FUNCTION pg_mq_get_msg_text(in_channel name, in_num_msgs int);
 DROP FUNCTION pg_mq_get_msg_bin(in_channel name, in_num_msgs int);
 DROP FUNCTION pg_mq_get_msg_id_text(in_channel name, in_msg_id int);
-DROP FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_msg_id int)
+DROP FUNCTION pg_mq_get_msg_id_bin(in_channel name, in_msg_id int);
 DROP FUNCTION pg_mq_rebuild_triggers();
+
+CREATE OR REPLACE FUNCTION pg_mq_trigger_notify() RETURNS TRIGGER
+LANGUAGE PLPGSQL AS
+$$
+DECLARE t_channel name;
+BEGIN
+   SELECT channel INTO t_channel FROM pg_mq_config_catalog 
+    WHERE table_name = TG_RELNAME;
+
+   EXECUTE 'NOTIFY ' || quote_ident(t_channel) || ', ' 
+            || quote_literal(NEW.msg_id);
+   RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION pg_mq_trigger_notify() IS
+$$ This function raises a notification on the channel specified in the 
+pg_mq_config_catalog for this table.  It is looked up every time currently so
+if the value is changed in that table it takes effect on db commit. $$;
 
 CREATE OR REPLACE FUNCTION pg_mq_create_queue
 (in_channel text, in_payload_type REGTYPE)
