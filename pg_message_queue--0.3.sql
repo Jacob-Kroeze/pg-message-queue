@@ -276,3 +276,62 @@ BEGIN
     RETURN retval;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION pg_mq_grant
+(in_channel name, in_role_name name, in_perm_type text)
+RETURNS BOOL LANGUAGE PLPGSQL AS
+$$
+DECLARE cat_val pg_mq_config_catalog%ROWTYPE;
+BEGIN
+
+    IF lower(in_perm_type) not in ('send', 'receive') THEN
+        RAISE EXCEPTION 'Invalid Permissions Type';
+    END IF;
+
+    SELECT * INTO cat_val FROM pg_mq_config_catalog WHERE channel = in_channel;
+
+    IF NOT FOUND THEN
+       RETURN FALSE;
+    END IF;
+    IF in_perm_type ilike ('send') THEN
+        EXECUTE $e$ GRANT INSERT ON $e$ || quote_ident(cat_val.table_name) 
+             || $e$ TO $e$ || quote_ident(in_role_name);
+    ELSIF in_perm_type ilike ('receive') THEN
+        EXECUTE $e$ GRANT UPDATE, SELECT 
+                       ON $e$ || quote_ident(cat_val.table_name)
+             || $e$ TO $e$ || quote_ident(in_role_name);
+    END IF;
+
+    RETURN TRUE;
+
+$$;
+
+CREATE OR REPLACE FUNCTION pg_mq_revoke(in_channel name, in_role_name name)
+RETURNS BOOL LANGUAGE PLPGSQL AS
+$$
+DECLARE cat_val pg_mq_config_catalog%ROWTYPE;
+BEGIN
+
+    IF lower(in_perm_type) not in ('send', 'receive') THEN
+        RAISE EXCEPTION 'Invalid Permissions Type';
+    END IF;
+
+    SELECT * INTO cat_val FROM pg_mq_config_catalog WHERE channel = in_channel;
+
+    IF NOT FOUND THEN
+       RETURN FALSE;
+    END IF;
+
+    IF in_perm_type ilike ('send') THEN
+        EXECUTE $e$ GRANT INSERT ON $e$ || quote_ident(cat_val.table_name) 
+             || $e$ TO $e$ || quote_ident(in_role_name);
+    ELSIF in_perm_type ilike ('receive') THEN
+        EXECUTE $e$ GRANT UPDATE, SELECT 
+                       ON $e$ || quote_ident(cat_val.table_name)
+             || $e$ TO $e$ || quote_ident(in_role_name);
+    END IF;
+
+
+    RETURN TRUE;
+
+$$;
