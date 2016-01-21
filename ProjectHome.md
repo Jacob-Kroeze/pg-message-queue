@@ -1,0 +1,1 @@
+This is a simple message queue server, very different from pgq.  We use LISTEN/NOTIFY and queue tables.  Queues are available in any type known to Postgres (as of 0.2) with permissions management functions coming in 0.3.
